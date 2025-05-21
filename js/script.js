@@ -39,6 +39,37 @@ mesh.rotation.x = -Math.PI/2; // initially our plane is rotated 90 degrees so we
 scene.add( mesh );
 mesh.position.set( 0, -0.79, 0 ); // set the position of the plane under the car manually idk yet how to do it automatically
 
+
+const obstacleMaterial = new THREE.MeshStandardMaterial({
+    color: 0xFF0000,
+    roughness: 0.5,
+});
+const obstacles = [];
+function createObstacle(x, z) {
+const box = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), obstacleMaterial);
+box.position.set(x, 1, z);
+box.castShadow = true;
+scene.add(box);
+obstacles.push(box);
+}
+createObstacle(5, 5);
+createObstacle(-5, -5);
+createObstacle(15, -12);
+
+function checkColission(){
+    if(!car){
+        return
+    }
+    const carBox = new THREE.Box3().setFromObject(car);
+    for(let obstacle of obstacles){
+        const obsBox= new THREE.Box3().setFromObject(obstacle);
+        if(carBox.intersectsBox(obsBox)){
+        velocity = 0;
+        break;
+        }
+    }
+}
+
 // create our model loader(gltf format)
 // we use it to load our car model
 const gltfLoader = new GLTFLoader();
@@ -48,8 +79,9 @@ const url = 'models/BasicCar.glb';
 // we use it to load our car texture
 const textures = textureLoader.load('models/CarTexture.png');
 const material = new THREE.MeshStandardMaterial({
-    map: textures,
+    map: textures
 });
+
 
 //create a control of our camera
 // we use it to control the camera with mouse
@@ -139,7 +171,9 @@ function updateCameraPosition() {
 function animate() {
    requestAnimationFrame(animate);
    updateCameraPosition();
+   checkColission();
    updateCarPosition();
+   document.getElementById('hud').textContent = `Speed: ${Math.abs(velocity * 200).toFixed(0)}%`;
    renderer.render(scene, camera);
 }
 
