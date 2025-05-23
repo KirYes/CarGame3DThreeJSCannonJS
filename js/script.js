@@ -69,41 +69,41 @@ rampMesh.quaternion.copy(rampBody.quaternion);
 scene.add(rampMesh);
 
 // create a obstacle function
-const obstacleMaterial = new THREE.MeshStandardMaterial({
-    color: 0xFF0000,
-    roughness: 0.5,
-});
-const obstacles = [];
-function createObstacle(x, z) {
-const box = new THREE.Mesh(new THREE.BoxGeometry(1, 5, 1), obstacleMaterial);
-box.position.set(x, 1, z);
-box.castShadow = true;
-scene.add(box);
-obstacles.push(box);
-}
-createObstacle(5, 5);
-createObstacle(-5, -5);
-createObstacle(15, -12);
+// const obstacleMaterial = new THREE.MeshStandardMaterial({
+//     color: 0xFF0000,
+//     roughness: 0.5,
+// });
+// const obstacles = [];
+// function createObstacle(x, z) {
+// const box = new THREE.Mesh(new THREE.BoxGeometry(1, 5, 1), obstacleMaterial);
+// box.position.set(x, 1, z);
+// box.castShadow = true;
+// scene.add(box);
+// obstacles.push(box);
+// }
+// createObstacle(5, 5);
+// createObstacle(-5, -5);
+// createObstacle(15, -12);
 
 //function for interacting with the objects
-function checkColission(){
-    if(!car){
-        return
-    }
-    const carBox = new THREE.Box3().setFromObject(car);
-    for(let obstacle of obstacles){
-        const obsBox= new THREE.Box3().setFromObject(obstacle);
-        if(carBox.intersectsBox(obsBox)){
-        velocity = 0;
-        break;
-        }
-    }
-}
+// function checkColission(){
+//     if(!car){
+//         return
+//     }
+//     const carBox = new THREE.Box3().setFromObject(car);
+//     for(let obstacle of obstacles){
+//         const obsBox= new THREE.Box3().setFromObject(obstacle);
+//         if(carBox.intersectsBox(obsBox)){
+           
+//         break;
+//         }
+//     }
+// }
 
 // create our model loader(gltf format)
 // we use it to load our car model
 const gltfLoader = new GLTFLoader();
-const url = 'models/BasicCar.glb';
+const url = 'models/4.glb';
 
 // create a texture loader
 // we use it to load our car texture
@@ -115,9 +115,9 @@ const material = new THREE.MeshStandardMaterial({
 
 //create a control of our camera
 // we use it to control the camera with mouse
-const controls = new OrbitControls( camera, renderer.domElement );
-controls.enableDamping = true; // an effect that makes the camera move smoothly
-controls.enabled = true;
+// const controls = new OrbitControls( camera, renderer.domElement );
+// controls.enableDamping = true; // an effect that makes the camera move smoothly
+// controls.enabled = false;
 
 //create our car object(mesh) as a group
 // we use it to group our car model and its children
@@ -125,9 +125,20 @@ controls.enabled = true;
 const car = new THREE.Group();
 let vehicle, chassisBody;
 const wheelVisuals = [];
-// load our car model and add it to our car object and scene
+
 gltfLoader.load(url, (gltf) => {
     const model = gltf.scene;
+    const wheels = [];
+      const frontWheelL = model.getObjectByName('FrontWheelL');
+    const frontWheelR = model.getObjectByName('FrontWheelR');
+    const backWheelL = model.getObjectByName('BackWheelL');
+    const backWheelR = model.getObjectByName('BackWheelR');
+    wheels.push(frontWheelL, frontWheelR, backWheelL, backWheelR);
+    backWheelL.parent.remove(backWheelL);
+    backWheelR.parent.remove(backWheelR);
+    frontWheelL.parent.remove(frontWheelL);
+    frontWheelR.parent.remove(frontWheelR);
+    // backWheelGroup.parent.remove(backWheelR);
     //load the car material
     model.traverse((child) => {
         if (child.isMesh) {
@@ -146,22 +157,6 @@ gltfLoader.load(url, (gltf) => {
     chassisBody.addShape(chassisShape);
     chassisBody.position.set(0, 2, 0);
     world.addBody(chassisBody);
-
-    // Damage system
-    chassisBody.addEventListener('collide', (event) => {
-        const impactVelocity = event.contact.getImpactVelocityAlongNormal();
-
-        if (impactVelocity > 2) {
-            const damage = Math.min(impactVelocity * 5, 20);
-            carHealth -= damage;
-            console.log(`Car hit! Damage: ${damage.toFixed(1)} | HP: ${carHealth.toFixed(1)}`);
-            flashCarDamage();
-        }
-
-        if (carHealth <= 0) {
-            carDestroyed();
-        }
-    });
 
     // Setup vehicle
     vehicle = new CANNON.RaycastVehicle({
@@ -188,33 +183,24 @@ gltfLoader.load(url, (gltf) => {
         useCustomSlidingRotationalSpeed: true,
     };
 
-    const wheelPositions = [
-        new CANNON.Vec3(-0.7, -0.3, 1.4),
-        new CANNON.Vec3(0.7, -0.3, 1.4),
-        new CANNON.Vec3(-0.7, -0.3, -1.1),
-        new CANNON.Vec3(0.7, -0.3, -1.1),
-    ];
-
-    for (let i = 0; i < 4; i++) {
-        wheelOptions.chassisConnectionPointLocal.copy(wheelPositions[i]);
+       wheels.forEach((wheel) => {
+        const worldPos = new THREE.Vector3();
+        wheel.getWorldPosition(worldPos);
+        model.worldToLocal(worldPos); // convert to local model space
+        const localPos = new CANNON.Vec3(worldPos.x, worldPos.y+2.23, worldPos.z);
+        wheelOptions.chassisConnectionPointLocal = localPos.clone();
         vehicle.addWheel(wheelOptions);
-    }
+    });
 
     vehicle.addToWorld(world);
 
-    const wheelGeo = new THREE.SphereGeometry(0.4, 100, 100);
-    const text = textureLoader.load('models/1.jpg');
-    text.rotation = Math.PI / 5;
-    const wheelMat = new THREE.MeshStandardMaterial({ map: text });
-
-    vehicle.wheelInfos.forEach(() => {
-        const wheelMesh = new THREE.Mesh(wheelGeo, wheelMat);
-
-        wheelMesh.rotation.z = Math.PI / 2;
+    for(let i=0; i<vehicle.wheelInfos.length; i++){
+      const wheelMesh = wheels[i].clone();
         scene.add(wheelMesh);
         wheelVisuals.push(wheelMesh);
-    });
+    };
 });
+
 
 
 
@@ -232,7 +218,7 @@ window.addEventListener('keyup', (event) => {
 });
 
 //define the car variables
-// let velocity = 0;
+//  let velocity = 0;
 // let maxSpeed = 0.5;
 // let acceleration = 0.01;
 // let friction = 0.02;
@@ -328,9 +314,7 @@ function animate(time) {
         }
     }
    updateCameraPosition();
-   checkColission();
-   const speed = chassisBody.velocity.length();
-document.getElementById('hud').textContent = `Speed: ${(speed * 3.6).toFixed(1)} km/h`;
+//    checkColission();
    renderer.render(scene, camera);
 }
 
